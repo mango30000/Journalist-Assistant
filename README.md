@@ -19,3 +19,14 @@
 4.	Ведение хронологии событий
 5.	Формирование итогового отчета с пакетом доказательств
 
+## Инструкция запуска frontend
+1. Склонируйте репозиторий:
+git clone https://github.com/mango30000/Journalist-Assistant.git
+2. Перейдите в папку frontend:
+cd Journalist-Assistant/frontend
+3. Установите зависимости:
+npm install
+4. Запустите приложение в режиме разработки:
+npm run dev
+5. Откройте в браузере адрес:
+http://localhost:5173
