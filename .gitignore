@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+
+venv/
+.venv/
+env/
+
+.env
+*.env.local
+
+.idea/
+.vscode/
+*.swp
+*.swo
+
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log
