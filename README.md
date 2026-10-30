@@ -30,3 +30,5 @@ npm install
 npm run dev
 5. Откройте в браузере адрес:
 http://localhost:5173
+
+

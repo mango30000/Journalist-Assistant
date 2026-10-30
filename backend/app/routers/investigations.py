@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas.schemas import InvestigationCreate, InvestigationResponse, ErrorResponse
+from app.schemas.schemas import InvestigationCreate, InvestigationResponse
 from app.crud.crud import (
     create_investigation, get_investigations,
     get_investigation, update_investigation, delete_investigation
