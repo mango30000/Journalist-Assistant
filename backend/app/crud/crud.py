@@ -1,169 +1,81 @@
+from typing import Generic, Type, TypeVar
+
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.models.models import Investigation, Source, Connection, Event, Evidence
-from app.schemas.schemas import (
-    InvestigationCreate, SourceCreate, ConnectionCreate, EventCreate, EvidenceCreate
-)
 
-def create_investigation(db: Session, data: InvestigationCreate):
-    obj = Investigation(**data.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
+from app.models import models
+from app import schemas
 
-def get_investigations(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Investigation).offset(skip).limit(limit).all()
+ModelType = TypeVar("ModelType")
+SchemaType = TypeVar("SchemaType", bound=BaseModel)
 
-def get_investigation(db: Session, id: int):
-    return db.query(Investigation).filter(Investigation.id == id).first()
 
-def update_investigation(db: Session, id: int, data: InvestigationCreate):
-    obj = db.query(Investigation).filter(Investigation.id == id).first()
-    if not obj:
-        return None
-    for k, v in data.model_dump().items():
-        setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
-    return obj
+class CRUDBase(Generic[ModelType, SchemaType]):
+    """Общие операции для любой модели: код пишется один раз."""
 
-def delete_investigation(db: Session, id: int):
-    obj = db.query(Investigation).filter(Investigation.id == id).first()
-    if not obj:
-        return None
-    db.delete(obj)
-    db.commit()
-    return obj
+    # поле для сортировки по умолчанию (переопределяется в наследниках)
+    order_by = None
 
-def create_source(db: Session, data: SourceCreate):
-    obj = Source(**data.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
+    def __init__(self, model: Type[ModelType]):
+        self.model = model
 
-def get_sources(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Source).offset(skip).limit(limit).all()
+    def create(self, db: Session, data: SchemaType) -> ModelType:
+        obj = self.model(**data.model_dump())
+        db.add(obj)
+        db.commit()
+        db.refresh(obj)  # нужен, чтобы получить id и значения по умолчанию
+        return obj
 
-def get_source(db: Session, id: int):
-    return db.query(Source).filter(Source.id == id).first()
+    def get_all(self, db: Session, skip: int = 0, limit: int = 100) -> list[ModelType]:
+        query = db.query(self.model)
+        if self.order_by is not None:
+            query = query.order_by(self.order_by)
+        return query.offset(skip).limit(limit).all()
 
-def get_sources_by_investigation(db: Session, investigation_id: int):
-    return db.query(Source).filter(Source.investigation_id == investigation_id).all()
+    def get(self, db: Session, id: int) -> ModelType | None:
+        return db.query(self.model).filter(self.model.id == id).first()
 
-def update_source(db: Session, id: int, data: SourceCreate):
-    obj = db.query(Source).filter(Source.id == id).first()
-    if not obj:
-        return None
-    for k, v in data.model_dump().items():
-        setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
-    return obj
+    def update(self, db: Session, id: int, data: SchemaType) -> ModelType | None:
+        obj = self.get(db, id)
+        if obj is None:  # нужно, чтобы роутер мог вернуть 404
+            return None
+        for key, value in data.model_dump().items():
+            setattr(obj, key, value)
+        db.commit()
+        db.refresh(obj)
+        return obj
 
-def delete_source(db: Session, id: int):
-    obj = db.query(Source).filter(Source.id == id).first()
-    if not obj:
-        return None
-    db.delete(obj)
-    db.commit()
-    return obj
+    def delete(self, db: Session, id: int) -> ModelType | None:
+        obj = self.get(db, id)
+        if obj is None:
+            return None
+        db.delete(obj)
+        db.commit()
+        return obj
 
-def create_connection(db: Session, data: ConnectionCreate):
-    obj = Connection(**data.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
 
-def get_connections(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Connection).offset(skip).limit(limit).all()
+class CRUDChild(CRUDBase[ModelType, SchemaType]):
+    """Для сущностей, привязанных к расследованию (есть investigation_id)."""
 
-def get_connection(db: Session, id: int):
-    return db.query(Connection).filter(Connection.id == id).first()
+    def get_by_investigation(self, db: Session, investigation_id: int) -> list[ModelType]:
+        query = db.query(self.model).filter(self.model.investigation_id == investigation_id)
+        if self.order_by is not None:
+            query = query.order_by(self.order_by)
+        return query.all()
 
-def update_connection(db: Session, id: int, data: ConnectionCreate):
-    obj = db.query(Connection).filter(Connection.id == id).first()
-    if not obj:
-        return None
-    for k, v in data.model_dump().items():
-        setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
-    return obj
 
-def delete_connection(db: Session, id: int):
-    obj = db.query(Connection).filter(Connection.id == id).first()
-    if not obj:
-        return None
-    db.delete(obj)
-    db.commit()
-    return obj
+class CRUDEvent(CRUDChild[models.Event, schemas.EventCreate]):
+    order_by = models.Event.event_date
 
-def create_event(db: Session, data: EventCreate):
-    obj = Event(**data.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
 
-def get_events(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Event).order_by(Event.event_date).offset(skip).limit(limit).all()
+# Готовые объекты, которые импортируются в роутерах
+investigation = CRUDBase[models.Investigation, schemas.InvestigationCreate](models.Investigation)
+source = CRUDChild[models.Source, schemas.SourceCreate](models.Source)
+connection = CRUDBase[models.Connection, schemas.ConnectionCreate](models.Connection)
+event = CRUDEvent(models.Event)
+evidence = CRUDChild[models.Evidence, schemas.EvidenceCreate](models.Evidence)
 
-def get_event(db: Session, id: int):
-    return db.query(Event).filter(Event.id == id).first()
-
-def get_events_by_investigation(db: Session, investigation_id: int):
-    return db.query(Event).filter(Event.investigation_id == investigation_id).order_by(Event.event_date).all()
-
-def update_event(db: Session, id: int, data: EventCreate):
-    obj = db.query(Event).filter(Event.id == id).first()
-    if not obj:
-        return None
-    for k, v in data.model_dump().items():
-        setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
-    return obj
-
-def delete_event(db: Session, id: int):
-    obj = db.query(Event).filter(Event.id == id).first()
-    if not obj:
-        return None
-    db.delete(obj)
-    db.commit()
-    return obj
-
-def create_evidence(db: Session, data: EvidenceCreate):
-    obj = Evidence(**data.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
-
-def get_evidence_list(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(Evidence).offset(skip).limit(limit).all()
-
-def get_evidence(db: Session, id: int):
-    return db.query(Evidence).filter(Evidence.id == id).first()
-
-def get_evidence_by_investigation(db: Session, investigation_id: int):
-    return db.query(Evidence).filter(Evidence.investigation_id == investigation_id).all()
-
-def update_evidence(db: Session, id: int, data: EvidenceCreate):
-    obj = db.query(Evidence).filter(Evidence.id == id).first()
-    if not obj:
-        return None
-    for k, v in data.model_dump().items():
-        setattr(obj, k, v)
-    db.commit()
-    db.refresh(obj)
-    return obj
-
-def delete_evidence(db: Session, id: int):
-    obj = db.query(Evidence).filter(Evidence.id == id).first()
-    if not obj:
-        return None
-    db.delete(obj)
-    db.commit()
-    return obj
+# Использование в роутере:
+#   from app import crud
+#   crud.source.get(db, 1)
+#   crud.event.get_by_investigation(db, investigation_id)

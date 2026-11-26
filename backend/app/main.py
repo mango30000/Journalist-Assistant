@@ -1,17 +1,26 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from app.database import engine, Base
-from app.routers import investigations, sources, connections, events, evidence
 
-Base.metadata.create_all(bind=engine)
+from app.api import api_router
+from app.database import Base, engine
+from app.models import models  # noqa: F401  (нужен, чтобы таблицы попали в Base.metadata)
 
-app = FastAPI(title="Journalist Assistant API")
 
-app.include_router(investigations.router)
-app.include_router(sources.router)
-app.include_router(connections.router)
-app.include_router(events.router)
-app.include_router(evidence.router)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Запуск: создаём таблицы
+    Base.metadata.create_all(bind=engine)
+    yield
+    # Остановка: закрываем соединения с БД
+    engine.dispose()
 
-@app.get("/")
-def root():
-    return {"message": "Journalist Assistant API"}
+
+app = FastAPI(title="Journalist Assistant API", lifespan=lifespan)
+
+app.include_router(api_router)
+
+
+@app.get("/health", tags=["Служебное"])
+def health():
+    return {"status": "ok"}

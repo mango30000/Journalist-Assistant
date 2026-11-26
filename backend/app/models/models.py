@@ -1,8 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum
-from sqlalchemy.orm import relationship
-from app.database import Base
 import enum
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from app.database import Base
+
 
 class TrustLevel(str, enum.Enum):
     HIGH = "высокий"
@@ -10,20 +13,35 @@ class TrustLevel(str, enum.Enum):
     LOW = "низкий"
     UNVERIFIED = "непроверенный"
 
+
+class InvestigationStatus(str, enum.Enum):
+    IN_PROGRESS = "в процессе"
+    COMPLETED = "завершено"
+    ON_HOLD = "приостановлено"
+    ARCHIVED = "в архиве"
+
+
 class Investigation(Base):
     __tablename__ = "investigations"
+
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     description = Column(Text)
-    status = Column(String, default="в процессе")
+    status = Column(
+        Enum(InvestigationStatus),
+        default=InvestigationStatus.IN_PROGRESS,
+        nullable=False,
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
 
     sources = relationship("Source", back_populates="investigation", cascade="all, delete-orphan")
     events = relationship("Event", back_populates="investigation", cascade="all, delete-orphan")
     evidence = relationship("Evidence", back_populates="investigation", cascade="all, delete-orphan")
 
+
 class Source(Base):
     __tablename__ = "sources"
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     trust_level = Column(Enum(TrustLevel), default=TrustLevel.UNVERIFIED)
@@ -34,8 +52,10 @@ class Source(Base):
     connections_from = relationship("Connection", foreign_keys="Connection.source_id", back_populates="source")
     connections_to = relationship("Connection", foreign_keys="Connection.target_id", back_populates="target")
 
+
 class Connection(Base):
     __tablename__ = "connections"
+
     id = Column(Integer, primary_key=True, index=True)
     source_id = Column(Integer, ForeignKey("sources.id"))
     target_id = Column(Integer, ForeignKey("sources.id"))
@@ -44,8 +64,10 @@ class Connection(Base):
     source = relationship("Source", foreign_keys=[source_id], back_populates="connections_from")
     target = relationship("Source", foreign_keys=[target_id], back_populates="connections_to")
 
+
 class Event(Base):
     __tablename__ = "events"
+
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     description = Column(Text)
@@ -54,8 +76,10 @@ class Event(Base):
 
     investigation = relationship("Investigation", back_populates="events")
 
+
 class Evidence(Base):
     __tablename__ = "evidence"
+
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     document_type = Column(String)
