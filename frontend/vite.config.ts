@@ -4,12 +4,15 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   optimizeDeps: {
-    disabled: true,
+    include: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "react-router-dom",
+      "@chakra-ui/react",
+      "@xyflow/react",
+    ],
   },
 });
